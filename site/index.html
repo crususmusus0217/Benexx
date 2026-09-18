@@ -90,7 +90,7 @@ mark{background:#ffe38a;color:#132338;border-radius:3px;padding:0 1px}
 <body>
 <header id="hdr">
   <div class="search">
-    <input id="q" type="search" inputmode="search" placeholder="作品名・キャラ名で検索" autocomplete="off" enterkeyhint="search">
+    <input id="q" type="search" name="search" inputmode="search" placeholder="作品名・キャラ名で検索" autocomplete="off" enterkeyhint="search" data-1p-ignore data-lpignore="true">
     <button id="clear" type="button" aria-label="検索語を消す">消す</button>
     <button id="gear" class="gear" type="button" aria-label="同期の設定">⚙</button>
   </div>
@@ -110,16 +110,19 @@ mark{background:#ffe38a;color:#132338;border-radius:3px;padding:0 1px}
 <main id="list"></main>
 
 <dialog id="settings">
-  <h2>在庫状態の同期</h2>
-  <label for="syncUrl">Apps Script のURL</label>
-  <input id="syncUrl" type="url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off">
-  <label for="syncKey">合言葉（スクリプトに設定したKEY）</label>
-  <input id="syncKey" type="password" autocomplete="off">
-  <p id="syncInfo"></p>
-  <div class="actions">
-    <button id="syncNow" type="button">今すぐ同期</button>
-    <button id="closeSettings" type="button" class="primary">保存して閉じる</button>
-  </div>
+  <form method="dialog" autocomplete="on">
+    <h2>在庫状態の同期</h2>
+    <label for="syncUrl">Apps Script のURL</label>
+    <input id="syncUrl" name="username" type="text" inputmode="url" autocomplete="username"
+      placeholder="https://script.google.com/macros/s/…/exec" autocapitalize="off" spellcheck="false">
+    <label for="syncKey">合言葉（スクリプトに設定したKEY）</label>
+    <input id="syncKey" name="password" type="password" autocomplete="current-password">
+    <p id="syncInfo"></p>
+    <div class="actions">
+      <button id="syncNow" type="button">今すぐ同期</button>
+      <button id="closeSettings" type="submit" class="primary">保存して閉じる</button>
+    </div>
+  </form>
 </dialog>
 
 <script>
