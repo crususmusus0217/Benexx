@@ -30,14 +30,20 @@ jobs:
       - run: npm ci
       - name: 取得・差分検出
         run: node scripts/update.mjs
-      - name: 履歴をコミット
+           - name: 履歴をコミット
         run: |
           git config user.name "github-actions[bot]"
-          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git config user.email "41898283+github-actions[bot]@://github.com"
           git add data/state.json
-          git diff --cached --quiet || git commit -m "update $(TZ=Asia/Tokyo date +%F)"
-          git pull --rebase origin main
-          git push
+          
+          # 変更がある場合のみ、コミット・プル・プッシュを実行する
+          if ! git diff --cached --quiet; then
+            git commit -m "update $(TZ=Asia/Tokyo date +%F)"
+            git pull --rebase origin main
+            git push origin main
+          else
+            echo "変更がないため、プッシュをスキップします。"
+          fi
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
