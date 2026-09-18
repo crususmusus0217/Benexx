@@ -8,9 +8,11 @@ import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import kuromoji from "kuromoji";
+import * as wanakana from "wanakana";
 
 const SOURCE_URL = "https://benex.co.jp/prizes";
 const ALIASES_PATH = "data/aliases.json"; // 手動の読み・愛称辞書
+const ENGLISH_PATH = "data/english.json"; // 英単語の読み辞書
 const STATE_PATH = "data/state.json";   // 初回検出日・入荷日変更の履歴（リポジトリにコミット）
 const OUT_PATH = "site/data.json";      // スマホ画面が読むデータ
 const KEEP_PAST_DAYS = 60;              // 画面に載せる過去分の日数
@@ -158,13 +160,25 @@ function buildTokenizer() {
 async function addReadings(list) {
   const aliases = existsSync(ALIASES_PATH) ? JSON.parse(await readFile(ALIASES_PATH, "utf8")) : {};
   const aliasKeys = Object.keys(aliases).filter((k) => !k.startsWith("_"));
+  const english = existsSync(ENGLISH_PATH) ? JSON.parse(await readFile(ENGLISH_PATH, "utf8")) : {};
   const tokenizer = await buildTokenizer();
   for (const p of list) {
     const name = p.name.normalize("NFKC");
+    const lower = name.toLowerCase();
     const auto = tokenizer.tokenize(name)
       .map((t) => (t.reading && t.reading !== "*" ? t.reading : t.surface_form)).join("");
-    const extra = aliasKeys.filter((k) => name.includes(k.normalize("NFKC"))).flatMap((k) => aliases[k]);
-    p.kana = [toHira(auto), ...extra].join(" ");
+    const extra = aliasKeys.filter((k) => lower.includes(k.normalize("NFKC").toLowerCase())).flatMap((k) => aliases[k]);
+    // 英字の単語: 辞書にあればその読み、ローマ字として読めれば平仮名に変換（OKKOTSU → おっこつ）
+    const latin = [];
+    for (const w of lower.match(/[a-z][a-z'&.\-]*[a-z]|[a-z]/g) ?? []) {
+      if (english[w]) { latin.push(...english[w]); continue; }
+      for (const part of w.split(/[-.&']/)) {
+        if (english[part]) { latin.push(...english[part]); continue; }
+        const h = wanakana.toHiragana(part);
+        if (part.length >= 2 && !/[a-z]/.test(h)) latin.push(h);
+      }
+    }
+    p.kana = [toHira(auto), ...extra, ...latin].join(" ");
   }
 }
 

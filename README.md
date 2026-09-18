@@ -6,6 +6,7 @@ Benex公式サイト（https://benex.co.jp/prizes）の景品入荷情報を1日
 ## 構成
 - `scripts/update.mjs` … 取得・差分検出・読み仮名生成・`site/data.json` 出力
 - `data/aliases.json` … 読み・愛称の手動辞書（自動の読みが外れる作品名や略称を追加）
+- `data/english.json` … 英単語の読み辞書（小文字で登録。ローマ字の人名は自動変換されるので不要）
 - `data/state.json` … 初回検出日・入荷日変更の履歴（Actionsが自動コミット）
 - `site/index.html` … スマホ用の検索画面
 - `apps-script/Code.gs` … 在庫状態（稼働中・保管中・在庫切れ）の同期用

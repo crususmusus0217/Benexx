@@ -2,6 +2,11 @@
   "name": "benex-hiratsuka",
   "private": true,
   "type": "module",
-  "scripts": { "update": "node scripts/update.mjs" },
-  "dependencies": { "kuromoji": "0.1.2" }
+  "scripts": {
+    "update": "node scripts/update.mjs"
+  },
+  "dependencies": {
+    "kuromoji": "0.1.2",
+    "wanakana": "^5.3.1"
+  }
 }

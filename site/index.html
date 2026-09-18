@@ -90,7 +90,8 @@ mark{background:#ffe38a;color:#132338;border-radius:3px;padding:0 1px}
 <body>
 <header id="hdr">
   <div class="search">
-    <input id="q" type="search" name="search" inputmode="search" placeholder="作品名・キャラ名で検索" autocomplete="off" enterkeyhint="search" data-1p-ignore data-lpignore="true">
+    <input id="q" type="search" name="search" inputmode="search" placeholder="作品名・キャラ名で検索"
+      autocomplete="off" enterkeyhint="search" data-1p-ignore data-lpignore="true">
     <button id="clear" type="button" aria-label="検索語を消す">消す</button>
     <button id="gear" class="gear" type="button" aria-label="同期の設定">⚙</button>
   </div>
@@ -181,7 +182,9 @@ async function pull(){
 }
 function done(){ sync.last = Date.now(); ls.set("sync", sync); syncMsg = ""; saveLocal(); render(); }
 function fail(e){
-  syncMsg = e.message === "unauthorized" ? "同期できません: 合言葉が違います" : "同期できません: 通信を確認してください（変更は端末に保存済み）";
+  syncMsg = e.message === "unauthorized"
+    ? "同期できません: 合言葉が違います"
+    : `同期できません: ${e.message}（変更は端末に保存済み）`;
   render();
 }
 
@@ -189,7 +192,10 @@ function fail(e){
 function norm(s){
   return s.normalize("NFKC").toLowerCase()
     .replace(/[\u30a1-\u30f6]/g, c => String.fromCharCode(c.charCodeAt(0) - 0x60))
-    .replace(/[\s・･\-‐‑–—―ｰー〜～~「」『』【】()（）\[\]!！?？☆★♪.。,、:：\/]/g, "");
+    .replace(/[\s・･\-‐‑–—―ｰー〜～~「」『』【】()（）\[\]!！?？☆★♪.。,、:：\/]/g, "")
+    // 長音のゆれを吸収（ゆうた＝ゆた、ばくごう＝ばくご）
+    .replace(/([おこごそぞとどのほぼぽもよろをょぉ])[うお]/g, "$1")
+    .replace(/([うくぐすずつづぬふぶぷむゆるゅぅ])う/g, "$1");
 }
 function addDays(ymd, n){ const d=new Date(ymd+"T00:00:00Z"); d.setUTCDate(d.getUTCDate()+n); return d.toISOString().slice(0,10); }
 function dow(ymd){ return new Date(ymd+"T00:00:00Z").getUTCDay(); }
