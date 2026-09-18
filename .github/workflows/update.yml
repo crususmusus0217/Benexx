@@ -30,7 +30,7 @@ jobs:
       - run: npm ci
       - name: 取得・差分検出
         run: node scripts/update.mjs
-           - name: 履歴をコミット
+      - name: 履歴をコミット
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898283+github-actions[bot]@://github.com"
