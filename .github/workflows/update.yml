@@ -33,13 +33,11 @@ jobs:
       - name: 履歴をコミット
         run: |
           git config user.name "github-actions[bot]"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/state.json site/data.json  # 対象ファイルをステージング
-          git commit -m "Automated data update" || exit 0 # 変更がない場合は正常終了
-          # 【ここを追加】リモートの最新の変更を rebase で取り込む
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add data/state.json
+          git diff --cached --quiet || git commit -m "update $(TZ=Asia/Tokyo date +%F)"
           git pull --rebase origin main
-          git push origin main
+          git push
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
