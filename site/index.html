@@ -45,8 +45,10 @@ main{padding:0 0 calc(env(safe-area-inset-bottom) + 40px)}
 .day b{font-size:22px;font-variant-numeric:tabular-nums;letter-spacing:.02em}
 .day span{font-size:14px;color:var(--sub)}
 .day .rel{color:var(--here);font-weight:700}
-.row{display:grid;grid-template-columns:64px 1fr;gap:12px;padding:10px 14px;background:var(--surface);
-  border-bottom:1px solid var(--line);width:100%;text-align:left;font:inherit;color:inherit;border-left:0;border-right:0;border-top:0}
+.row{background:var(--surface);border-bottom:1px solid var(--line)}
+.head{display:grid;grid-template-columns:64px 1fr;gap:12px;padding:10px 14px;width:100%;text-align:left;
+  font:inherit;color:inherit;background:none;border:0}
+.head:focus-visible{outline:3px solid var(--here);outline-offset:-3px}
 .row img,.row .noimg{width:64px;height:64px;object-fit:cover;border-radius:8px;background:var(--line)}
 .name{font-size:15px;line-height:1.45;word-break:break-all}
 .meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
@@ -56,8 +58,29 @@ main{padding:0 0 calc(env(safe-area-inset-bottom) + 40px)}
 .tag.moved{background:var(--alert-bg);color:var(--alert)}
 .tag.new{background:var(--new-bg);color:var(--new)}
 .row.off .name{color:var(--sub)}
-.detail{grid-column:1 / -1;display:none;margin-top:4px}
-.row[aria-expanded="true"] .detail{display:block}
+.detail{display:none;padding:0 14px 14px}
+.row.open .detail{display:block}
+.st-buttons{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px}
+.st-buttons button{font:inherit;font-size:14px;padding:10px 4px;border-radius:10px;border:1px solid var(--line);
+  background:var(--bg);color:var(--ink)}
+.st-buttons button[aria-pressed="true"]{border-color:currentColor;font-weight:700}
+.st-buttons .稼働中[aria-pressed="true"]{color:var(--here);background:var(--here-bg)}
+.st-buttons .保管中[aria-pressed="true"]{color:var(--new);background:var(--new-bg)}
+.st-buttons .在庫切れ[aria-pressed="true"]{color:var(--alert);background:var(--alert-bg)}
+.tag.稼働中{background:var(--here);color:var(--surface)}
+.tag.保管中{background:var(--new);color:var(--surface)}
+.tag.在庫切れ{background:var(--alert);color:var(--surface)}
+.chip.st[aria-pressed="true"]{background:#ffd27a;border-color:#ffd27a;color:#2b1d00}
+.gear{font:inherit;font-size:15px;border:0;border-radius:12px;padding:12px;background:rgba(255,255,255,.14);color:#fff}
+dialog{border:0;border-radius:16px;padding:20px;width:min(92vw,420px);background:var(--surface);color:var(--ink)}
+dialog::backdrop{background:rgba(0,0,0,.45)}
+dialog h2{font-size:18px;margin:0 0 12px}
+dialog label{display:block;font-size:14px;margin:12px 0 4px;color:var(--sub)}
+dialog input{width:100%;font:inherit;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+dialog .actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+dialog .actions button{font:inherit;padding:10px 14px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+dialog .actions .primary{background:var(--sea);color:#fff;border-color:var(--sea)}
+dialog p{font-size:13px;color:var(--sub);margin:8px 0 0}
 .detail img{width:100%;height:auto;max-height:60vh;object-fit:contain;border-radius:10px;background:var(--line)}
 .detail p{margin:8px 0 0;font-size:14px;color:var(--sub)}
 .empty{padding:40px 20px;text-align:center;color:var(--sub)}
@@ -69,6 +92,7 @@ mark{background:#ffe38a;color:#132338;border-radius:3px;padding:0 1px}
   <div class="search">
     <input id="q" type="search" inputmode="search" placeholder="作品名・キャラ名で検索" autocomplete="off" enterkeyhint="search">
     <button id="clear" type="button" aria-label="検索語を消す">消す</button>
+    <button id="gear" class="gear" type="button" aria-label="同期の設定">⚙</button>
   </div>
   <div class="chips" role="group" aria-label="絞り込み">
     <button class="chip store" id="onlyHere" aria-pressed="true">平塚のみ</button>
@@ -77,17 +101,88 @@ mark{background:#ffe38a;color:#132338;border-radius:3px;padding:0 1px}
     <button class="chip" data-range="next">来週</button>
     <button class="chip" data-range="future">今後すべて</button>
     <button class="chip" data-range="past">入荷済み</button>
+    <button class="chip st" data-st="稼働中">稼働中</button>
+    <button class="chip st" data-st="保管中">保管中</button>
+    <button class="chip st" data-st="在庫切れ">在庫切れ</button>
   </div>
 </header>
 <p class="status" id="status">読み込み中…</p>
 <main id="list"></main>
 
+<dialog id="settings">
+  <h2>在庫状態の同期</h2>
+  <label for="syncUrl">Apps Script のURL</label>
+  <input id="syncUrl" type="url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off">
+  <label for="syncKey">合言葉（スクリプトに設定したKEY）</label>
+  <input id="syncKey" type="password" autocomplete="off">
+  <p id="syncInfo"></p>
+  <div class="actions">
+    <button id="syncNow" type="button">今すぐ同期</button>
+    <button id="closeSettings" type="button" class="primary">保存して閉じる</button>
+  </div>
+</dialog>
+
 <script>
 const $ = (s) => document.querySelector(s);
-const state = { q: "", range: "week", onlyHere: true, data: null };
+const state = { q: "", range: "week", onlyHere: true, stFilter: "", data: null };
 const WD = ["日","月","火","水","木","金","土"];
+const STATUSES = ["稼働中","保管中","在庫切れ"];
 
-// 検索用の正規化: 全角半角・大文字小文字・カタカナ/ひらがな・記号ゆれを吸収
+// ---------- 在庫状態（端末に保存＋任意でスプレッドシートと同期） ----------
+const ls = {
+  get(k, d){ try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+};
+let statuses = ls.get("statuses", {});        // { id: { s: "稼働中"|"保管中"|"在庫切れ"|"", t: ミリ秒 } }
+let pending  = new Set(ls.get("pending", [])); // まだ送れていない変更のID
+let sync     = ls.get("sync", { url: "", key: "", last: 0 });
+let syncMsg  = "";
+
+function saveLocal(){ ls.set("statuses", statuses); ls.set("pending", [...pending]); }
+function merge(remote){
+  for (const [id, r] of Object.entries(remote || {})){
+    const l = statuses[id];
+    if (!l || r.t > l.t){ statuses[id] = r; pending.delete(id); }
+    else if (l.t === r.t) pending.delete(id);
+  }
+}
+function setStatus(id, s){
+  statuses[id] = { s, t: Date.now() };
+  pending.add(id); saveLocal(); render(); schedulePush();
+}
+
+let pushTimer;
+function schedulePush(){ clearTimeout(pushTimer); pushTimer = setTimeout(push, 800); }
+async function push(){
+  if (!sync.url || !pending.size) return;
+  const byId = Object.fromEntries((state.data?.prizes || []).map(p => [p.id, p.name]));
+  const updates = [...pending].map(id => ({ id, ...statuses[id], name: byId[id] || "" }));
+  try {
+    const res = await fetch(sync.url, { method: "POST", headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ key: sync.key, updates }) });
+    const j = await res.json();
+    if (j.error) throw new Error(j.error);
+    for (const u of updates) if (statuses[u.id]?.t === u.t) pending.delete(u.id);
+    merge(j.statuses); done();
+  } catch (e) { fail(e); }
+}
+async function pull(){
+  if (!sync.url) return;
+  try {
+    const res = await fetch(`${sync.url}?key=${encodeURIComponent(sync.key)}`);
+    const j = await res.json();
+    if (j.error) throw new Error(j.error);
+    merge(j.statuses); done();
+    if (pending.size) push();
+  } catch (e) { fail(e); }
+}
+function done(){ sync.last = Date.now(); ls.set("sync", sync); syncMsg = ""; saveLocal(); render(); }
+function fail(e){
+  syncMsg = e.message === "unauthorized" ? "同期できません: 合言葉が違います" : "同期できません: 通信を確認してください（変更は端末に保存済み）";
+  render();
+}
+
+// ---------- 表示 ----------
 function norm(s){
   return s.normalize("NFKC").toLowerCase()
     .replace(/[\u30a1-\u30f6]/g, c => String.fromCharCode(c.charCodeAt(0) - 0x60))
@@ -96,68 +191,69 @@ function norm(s){
 function addDays(ymd, n){ const d=new Date(ymd+"T00:00:00Z"); d.setUTCDate(d.getUTCDate()+n); return d.toISOString().slice(0,10); }
 function dow(ymd){ return new Date(ymd+"T00:00:00Z").getUTCDay(); }
 function jstToday(){ return new Intl.DateTimeFormat("sv-SE",{timeZone:"Asia/Tokyo"}).format(new Date()); }
-
 function rangeOf(key, today){
-  const mon = addDays(today, -((dow(today)+6)%7));      // 今週の月曜
+  const mon = addDays(today, -((dow(today)+6)%7));
   switch(key){
     case "today":  return [today, today];
     case "week":   return [mon, addDays(mon,6)];
     case "next":   return [addDays(mon,7), addDays(mon,13)];
     case "future": return [today, "9999-12-31"];
     case "past":   return ["0000-01-01", addDays(today,-1)];
+    default:       return ["0000-01-01", "9999-12-31"];
   }
 }
 function relLabel(d, today){
   const diff = Math.round((new Date(d) - new Date(today)) / 864e5);
   return diff===0?"今日":diff===1?"明日":diff===-1?"昨日":diff>1?`${diff}日後`:"";
 }
-function esc(s){ return s.replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+function esc(s){ return String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 function thumb(url, w){ return url ? `${url}?w=${w}&fm=webp` : ""; }
 function md(ymd){ const [,m,d]=ymd.split("-"); return `${+m}/${+d}`; }
+function when(t){ return new Date(t).toLocaleString("ja-JP",{timeZone:"Asia/Tokyo",month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"}); }
+const openIds = new Set();
 
 function render(){
   const { data } = state; if(!data) return;
   const today = jstToday();
   const words = state.q.split(/\s+/).map(norm).filter(Boolean);
   const searching = words.length > 0;
-  const [from, to] = searching ? ["0000-01-01","9999-12-31"] : rangeOf(state.range, today);
+  const byStatus = !!state.stFilter;
+  const [from, to] = rangeOf((searching || byStatus) ? "all" : state.range, today);
 
   document.querySelectorAll(".chip[data-range]").forEach(b => {
-    b.setAttribute("aria-pressed", String(!searching && b.dataset.range === state.range));
-    b.disabled = searching;
+    b.setAttribute("aria-pressed", String(!searching && !byStatus && b.dataset.range === state.range));
+    b.disabled = searching || byStatus;
   });
+  document.querySelectorAll(".chip[data-st]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.st === state.stFilter)));
 
   let items = data.prizes.filter(p => p.date >= from && p.date <= to);
   if (searching) items = items.filter(p => words.every(w => p._n.includes(w)));
-  // 検索中は「平塚のみ」でも他店のみの商品を残す（「平塚には入らない」と答えるため）
+  if (byStatus) items = items.filter(p => statuses[p.id]?.s === state.stFilter);
   const hereCount = items.filter(p => p._here).length;
   if (state.onlyHere && !searching) items = items.filter(p => p._here);
 
-  // 並び: 今後の分は近い順、過去は新しい順
   items.sort((a,b) => {
     const fa = a.date >= today, fb = b.date >= today;
     if (fa !== fb) return fa ? -1 : 1;
     return fa ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date);
   });
 
-  const upd = new Date(data.updatedAt).toLocaleString("ja-JP",{timeZone:"Asia/Tokyo",month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"});
-  $("#status").textContent = searching
-    ? `「${state.q}」${items.length}件（平塚あり ${hereCount}件）・${upd} 更新`
-    : `${items.length}件・${upd} 更新`;
+  const parts = [searching ? `「${state.q}」${items.length}件（平塚あり ${hereCount}件）` : `${items.length}件`, `${when(data.updatedAt)} 更新`];
+  if (sync.url) parts.push(syncMsg || (pending.size ? `未送信 ${pending.size}件` : sync.last ? `${when(sync.last)} 同期` : ""));
+  $("#status").textContent = parts.filter(Boolean).join("・");
 
   if (!items.length){
     $("#list").innerHTML = `<p class="empty">${searching
       ? "該当する景品はありません。<br>作品名を短くするか、キャラ名だけで検索してください。"
-      : "この期間の入荷予定はありません。"}</p>`;
+      : byStatus ? `「${state.stFilter}」の景品はありません。` : "この期間の入荷予定はありません。"}</p>`;
     return;
   }
 
   const hl = (name) => {
-    if (!searching) return esc(name);
-    // 正規化前の文字列上で素朴にハイライト（NFKCで長さが変わらない範囲）
     let out = esc(name);
+    if (!searching) return out;
     for (const w of state.q.split(/\s+/).filter(Boolean)){
-      const re = new RegExp(w.replace(/[.*+?^${}()|[\]\\]/g,"\\$&"), "gi");
+      const re = new RegExp(esc(w).replace(/[.*+?^${}()|[\]\\]/g,"\\$&"), "gi");
       out = out.replace(re, m => `<mark>${m}</mark>`);
     }
     return out;
@@ -170,30 +266,38 @@ function render(){
       const rel = relLabel(p.date, today);
       html += `<div class="day"><b>${md(p.date)}</b><span>（${WD[dow(p.date)]}）</span>${rel?`<span class="rel">${rel}</span>`:""}</div>`;
     }
+    const st = statuses[p.id];
     const others = p.stores.filter(s => s !== "hiratsuka").map(s => data.storeNames[s]).join("・");
     const tags = [
+      st?.s ? `<span class="tag ${st.s}">${st.s}</span>` : "",
       p._here ? `<span class="tag here">平塚あり</span>` : `<span class="tag away">平塚なし（${others || "—"}）</span>`,
       p.dateChangedAt ? `<span class="tag moved">日付変更 ${md(p.prevDate)}→${md(p.date)}</span>` : "",
       p.firstSeen && p.firstSeen >= addDays(today,-2) ? `<span class="tag new">新着</span>` : "",
     ].join("");
     const img = p.image ? `<img loading="lazy" src="${thumb(p.image,160)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'noimg'}))">` : `<div class="noimg"></div>`;
-    html += `<button class="row${p._here?"":" off"}" aria-expanded="false" data-img="${p.image?esc(thumb(p.image,800)):""}">
-      ${img}<div><div class="name">${hl(p.name)}</div><div class="meta">${tags}</div></div>
-      <div class="detail"></div></button>`;
+    const open = openIds.has(p.id);
+    const btns = ["", ...STATUSES].map(s =>
+      `<button type="button" class="${s || "none"}" data-set="${s}" aria-pressed="${(st?.s || "") === s}">${s || "未設定"}</button>`).join("");
+    html += `<article class="row${p._here?"":" off"}${open?" open":""}" data-id="${esc(p.id)}">
+      <button class="head" type="button" aria-expanded="${open}">${img}<div><div class="name">${hl(p.name)}</div><div class="meta">${tags}</div></div></button>
+      <div class="detail">${open ? detailHtml(p, st, btns) : ""}</div></article>`;
   }
   $("#list").innerHTML = html;
 }
+function detailHtml(p, st, btns){
+  const img = p.image ? `<img src="${esc(thumb(p.image,800))}" alt="景品画像">` : `<p>画像はありません</p>`;
+  const note = st?.t ? `<p>状態の更新: ${when(st.t)}</p>` : "";
+  return `<div class="st-buttons" role="group" aria-label="在庫状態">${btns}</div>${img}${note}`;
+}
 
-// 行タップで大きい画像と取扱店舗を表示
 $("#list").addEventListener("click", (e) => {
   const row = e.target.closest(".row"); if(!row) return;
-  const open = row.getAttribute("aria-expanded") === "true";
-  row.setAttribute("aria-expanded", String(!open));
-  const det = row.querySelector(".detail");
-  if (!open && !det.dataset.done){
-    det.dataset.done = "1";
-    const src = row.dataset.img;
-    det.innerHTML = src ? `<img src="${src}" alt="景品画像">` : `<p>画像はありません</p>`;
+  const id = row.dataset.id;
+  const setBtn = e.target.closest("[data-set]");
+  if (setBtn){ setStatus(id, setBtn.dataset.set); return; }
+  if (e.target.closest(".head")){
+    openIds.has(id) ? openIds.delete(id) : openIds.add(id);
+    render();
   }
 });
 
@@ -201,18 +305,35 @@ let t;
 $("#q").addEventListener("input", (e) => { clearTimeout(t); t = setTimeout(() => { state.q = e.target.value.trim(); render(); scrollTo(0,0); }, 120); });
 $("#clear").addEventListener("click", () => { $("#q").value = ""; state.q = ""; render(); $("#q").focus(); });
 document.querySelectorAll(".chip[data-range]").forEach(b => b.addEventListener("click", () => { state.range = b.dataset.range; render(); scrollTo(0,0); }));
+document.querySelectorAll(".chip[data-st]").forEach(b => b.addEventListener("click", () => {
+  state.stFilter = state.stFilter === b.dataset.st ? "" : b.dataset.st; render(); scrollTo(0,0);
+}));
 $("#onlyHere").addEventListener("click", (e) => {
   state.onlyHere = !state.onlyHere; e.currentTarget.setAttribute("aria-pressed", String(state.onlyHere)); render();
 });
-// 見出しの固定位置をヘッダーの高さに合わせる
+
+// 設定
+const dlg = $("#settings");
+function showSyncInfo(){
+  $("#syncInfo").textContent = !sync.url ? "未設定のときは、この端末の中だけに保存されます。"
+    : syncMsg || (sync.last ? `最終同期: ${when(sync.last)}` : "まだ同期していません。");
+}
+$("#gear").addEventListener("click", () => { $("#syncUrl").value = sync.url; $("#syncKey").value = sync.key; showSyncInfo(); dlg.showModal(); });
+function readForm(){ sync.url = $("#syncUrl").value.trim(); sync.key = $("#syncKey").value; ls.set("sync", sync); }
+$("#closeSettings").addEventListener("click", () => { readForm(); dlg.close(); pull(); });
+$("#syncNow").addEventListener("click", async () => { readForm(); $("#syncInfo").textContent = "同期中…"; await pull(); showSyncInfo(); });
+
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") pull(); });
+addEventListener("online", () => pull());
+
 const fit = () => document.documentElement.style.setProperty("--hdr", $("#hdr").offsetHeight + "px");
 addEventListener("resize", fit); fit();
 
 fetch("data.json", { cache: "no-cache" })
   .then(r => { if(!r.ok) throw new Error(r.status); return r.json(); })
   .then(d => {
-    for (const p of d.prizes){ p._n = norm(p.name); p._here = p.stores.includes("hiratsuka"); }
-    state.data = d; render();
+    for (const p of d.prizes){ p._n = norm(p.name + " " + (p.kana || "")); p._here = p.stores.includes("hiratsuka"); }
+    state.data = d; render(); pull();
   })
   .catch(() => { $("#status").textContent = "データを読み込めませんでした。通信状態を確認して、再読み込みしてください。"; });
 </script>

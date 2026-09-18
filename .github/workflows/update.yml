@@ -26,6 +26,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+      - run: npm ci
       - name: 取得・差分検出
         run: node scripts/update.mjs
       - name: 履歴をコミット

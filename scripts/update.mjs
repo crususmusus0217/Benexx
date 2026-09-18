@@ -1,12 +1,16 @@
 // Benex 景品入荷情報の取得・差分検出・出力
 // 使い方: node scripts/update.mjs            (サイトから取得)
 //        node scripts/update.mjs prizes.html (保存済みHTMLから。テスト用)
-// 依存パッケージなし / Node 18+
+// 依存: kuromoji（読み仮名生成） / Node 18+
 
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import { createRequire } from "node:module";
+import path from "node:path";
+import kuromoji from "kuromoji";
 
 const SOURCE_URL = "https://benex.co.jp/prizes";
+const ALIASES_PATH = "data/aliases.json"; // 手動の読み・愛称辞書
 const STATE_PATH = "data/state.json";   // 初回検出日・入荷日変更の履歴（リポジトリにコミット）
 const OUT_PATH = "site/data.json";      // スマホ画面が読むデータ
 const KEEP_PAST_DAYS = 60;              // 画面に載せる過去分の日数
@@ -127,6 +131,8 @@ async function main() {
     .map((p) => ({ ...p, ...pick(state[p.id], ["firstSeen", "prevDate", "dateChangedAt"]) }))
     .sort((a, b) => b.date.localeCompare(a.date) || a.name.localeCompare(b.name, "ja"));
 
+  await addReadings(view);
+
   await mkdir("data", { recursive: true });
   await mkdir("site", { recursive: true });
   await writeFile(STATE_PATH, JSON.stringify(state));
@@ -140,6 +146,26 @@ async function main() {
   const hira = (list) => list.filter((p) => p.stores.includes("hiratsuka")).length;
   console.log(`取得方法: ${method} / 全${prizes.length}件 / 画面用${view.length}件`);
   console.log(`新規 ${added.length}件（うち平塚 ${hira(added)}件） / 入荷日変更 ${changed.length}件（うち平塚 ${hira(changed)}件）`);
+}
+
+// 読み仮名（ひらがな）を作る: 形態素解析の読み + 愛称辞書
+const toHira = (s) => s.replace(/[\u30a1-\u30f6]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0x60));
+function buildTokenizer() {
+  const require = createRequire(import.meta.url);
+  const dicPath = path.join(path.dirname(require.resolve("kuromoji")), "..", "dict");
+  return new Promise((ok, ng) => kuromoji.builder({ dicPath }).build((e, t) => (e ? ng(e) : ok(t))));
+}
+async function addReadings(list) {
+  const aliases = existsSync(ALIASES_PATH) ? JSON.parse(await readFile(ALIASES_PATH, "utf8")) : {};
+  const aliasKeys = Object.keys(aliases).filter((k) => !k.startsWith("_"));
+  const tokenizer = await buildTokenizer();
+  for (const p of list) {
+    const name = p.name.normalize("NFKC");
+    const auto = tokenizer.tokenize(name)
+      .map((t) => (t.reading && t.reading !== "*" ? t.reading : t.surface_form)).join("");
+    const extra = aliasKeys.filter((k) => name.includes(k.normalize("NFKC"))).flatMap((k) => aliases[k]);
+    p.kana = [toHira(auto), ...extra].join(" ");
+  }
 }
 
 function pick(obj, keys) {

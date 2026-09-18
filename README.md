@@ -4,14 +4,31 @@ Benex公式サイト（https://benex.co.jp/prizes）の景品入荷情報を1日
 平塚店向けにスマホで検索できるページとして公開する。
 
 ## 構成
-- `scripts/update.mjs` … 取得・差分検出・`site/data.json` 出力（依存なし）
-- `site/index.html` … スマホ用の検索画面
+- `scripts/update.mjs` … 取得・差分検出・読み仮名生成・`site/data.json` 出力
+- `data/aliases.json` … 読み・愛称の手動辞書（自動の読みが外れる作品名や略称を追加）
 - `data/state.json` … 初回検出日・入荷日変更の履歴（Actionsが自動コミット）
+- `site/index.html` … スマホ用の検索画面
+- `apps-script/Code.gs` … 在庫状態（稼働中・保管中・在庫切れ）の同期用
 - `.github/workflows/update.yml` … 定期実行とGitHub Pagesへのデプロイ
 
 ## ローカル確認
+    npm ci
     node scripts/update.mjs
-    npx serve site        # または python -m http.server -d site
+    npx serve site
+
+## 在庫状態の同期（任意）
+状態はまず端末に保存される。複数端末で共有・バックアップしたい場合だけ設定する。
+状態は公開リポジトリには入らず、自分のスプレッドシートにだけ保存される。
+
+1. Googleスプレッドシートを新規作成 → 拡張機能 → Apps Script
+2. `apps-script/Code.gs` の内容を貼り付けて保存
+3. プロジェクトの設定 → スクリプト プロパティに `KEY` = 任意の合言葉 を追加
+4. デプロイ → 新しいデプロイ → 種類「ウェブアプリ」
+   - 実行ユーザー: 自分 / アクセスできるユーザー: 全員
+5. 表示されたURL（…/exec）と合言葉を、画面右上の ⚙ から入力
+
+`Code.gs` を修正したときは「デプロイを管理」から同じデプロイの新バージョンを作る
+（新規デプロイにするとURLが変わる）。
 
 ## 失敗時
 抽出件数が50件未満だとスクリプトが異常終了し、Actionsの失敗通知メールが届く。
