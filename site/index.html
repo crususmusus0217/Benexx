@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0f2d4a">
+<title>平塚 入荷メモ</title>
+<style>
+:root{
+  --bg:#f6f8fa; --surface:#ffffff; --ink:#132338; --sub:#5b6878; --line:#dde3ea;
+  --sea:#0f2d4a; --here:#0a7f6c; --here-bg:#e3f4f0; --away:#9a6a0a; --away-bg:#fbf1dc;
+  --alert:#b8322a; --alert-bg:#fbe7e5; --new:#2458c6; --new-bg:#e6edfb;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0c1622; --surface:#132131; --ink:#e7edf4; --sub:#9aa8b8; --line:#243548;
+    --sea:#081421; --here:#4fd1b6; --here-bg:#123a35; --away:#f0bd5a; --away-bg:#3a2d12;
+    --alert:#ff8a80; --alert-bg:#3d1d1b; --new:#8fb1ff; --new-bg:#1b2a4a;
+  }
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic UI",Meiryo,sans-serif;
+  font-size:16px;line-height:1.5;font-feature-settings:"palt";}
+header{position:sticky;top:0;z-index:5;background:var(--sea);color:#fff;
+  padding:calc(env(safe-area-inset-top) + 10px) 12px 10px;}
+.search{display:flex;gap:8px;align-items:center}
+.search input{flex:1;min-width:0;font:inherit;font-size:18px;padding:12px 14px;border-radius:12px;border:0;
+  background:#fff;color:#132338;outline:none}
+.search input:focus-visible{box-shadow:0 0 0 3px #7fd6c5}
+.search button{font:inherit;font-size:15px;border:0;border-radius:12px;padding:12px;background:rgba(255,255,255,.14);color:#fff}
+.chips{display:flex;gap:6px;margin-top:10px;overflow-x:auto;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;font:inherit;font-size:14px;padding:6px 12px;border-radius:999px;border:1px solid rgba(255,255,255,.3);
+  background:transparent;color:#fff}
+.chip[aria-pressed="true"]{background:#fff;color:var(--sea);border-color:#fff;font-weight:700}
+.chip.store[aria-pressed="true"]{background:#7fd6c5;border-color:#7fd6c5;color:#08221d}
+.chip:disabled{opacity:.4}
+.status{font-size:13px;color:var(--sub);padding:10px 14px 0}
+main{padding:0 0 calc(env(safe-area-inset-bottom) + 40px)}
+.day{position:sticky;top:var(--hdr,112px);z-index:2;background:var(--bg);
+  padding:14px 14px 6px;display:flex;align-items:baseline;gap:8px;border-bottom:1px solid var(--line)}
+.day b{font-size:22px;font-variant-numeric:tabular-nums;letter-spacing:.02em}
+.day span{font-size:14px;color:var(--sub)}
+.day .rel{color:var(--here);font-weight:700}
+.row{display:grid;grid-template-columns:64px 1fr;gap:12px;padding:10px 14px;background:var(--surface);
+  border-bottom:1px solid var(--line);width:100%;text-align:left;font:inherit;color:inherit;border-left:0;border-right:0;border-top:0}
+.row img,.row .noimg{width:64px;height:64px;object-fit:cover;border-radius:8px;background:var(--line)}
+.name{font-size:15px;line-height:1.45;word-break:break-all}
+.meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.tag{font-size:12px;padding:2px 8px;border-radius:6px;font-weight:700}
+.tag.here{background:var(--here-bg);color:var(--here)}
+.tag.away{background:var(--away-bg);color:var(--away)}
+.tag.moved{background:var(--alert-bg);color:var(--alert)}
+.tag.new{background:var(--new-bg);color:var(--new)}
+.row.off .name{color:var(--sub)}
+.detail{grid-column:1 / -1;display:none;margin-top:4px}
+.row[aria-expanded="true"] .detail{display:block}
+.detail img{width:100%;height:auto;max-height:60vh;object-fit:contain;border-radius:10px;background:var(--line)}
+.detail p{margin:8px 0 0;font-size:14px;color:var(--sub)}
+.empty{padding:40px 20px;text-align:center;color:var(--sub)}
+mark{background:#ffe38a;color:#132338;border-radius:3px;padding:0 1px}
+</style>
+</head>
+<body>
+<header id="hdr">
+  <div class="search">
+    <input id="q" type="search" inputmode="search" placeholder="作品名・キャラ名で検索" autocomplete="off" enterkeyhint="search">
+    <button id="clear" type="button" aria-label="検索語を消す">消す</button>
+  </div>
+  <div class="chips" role="group" aria-label="絞り込み">
+    <button class="chip store" id="onlyHere" aria-pressed="true">平塚のみ</button>
+    <button class="chip" data-range="today">今日</button>
+    <button class="chip" data-range="week">今週</button>
+    <button class="chip" data-range="next">来週</button>
+    <button class="chip" data-range="future">今後すべて</button>
+    <button class="chip" data-range="past">入荷済み</button>
+  </div>
+</header>
+<p class="status" id="status">読み込み中…</p>
+<main id="list"></main>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const state = { q: "", range: "week", onlyHere: true, data: null };
+const WD = ["日","月","火","水","木","金","土"];
+
+// 検索用の正規化: 全角半角・大文字小文字・カタカナ/ひらがな・記号ゆれを吸収
+function norm(s){
+  return s.normalize("NFKC").toLowerCase()
+    .replace(/[\u30a1-\u30f6]/g, c => String.fromCharCode(c.charCodeAt(0) - 0x60))
+    .replace(/[\s・･\-‐‑–—―ｰー〜～~「」『』【】()（）\[\]!！?？☆★♪.。,、:：\/]/g, "");
+}
+function addDays(ymd, n){ const d=new Date(ymd+"T00:00:00Z"); d.setUTCDate(d.getUTCDate()+n); return d.toISOString().slice(0,10); }
+function dow(ymd){ return new Date(ymd+"T00:00:00Z").getUTCDay(); }
+function jstToday(){ return new Intl.DateTimeFormat("sv-SE",{timeZone:"Asia/Tokyo"}).format(new Date()); }
+
+function rangeOf(key, today){
+  const mon = addDays(today, -((dow(today)+6)%7));      // 今週の月曜
+  switch(key){
+    case "today":  return [today, today];
+    case "week":   return [mon, addDays(mon,6)];
+    case "next":   return [addDays(mon,7), addDays(mon,13)];
+    case "future": return [today, "9999-12-31"];
+    case "past":   return ["0000-01-01", addDays(today,-1)];
+  }
+}
+function relLabel(d, today){
+  const diff = Math.round((new Date(d) - new Date(today)) / 864e5);
+  return diff===0?"今日":diff===1?"明日":diff===-1?"昨日":diff>1?`${diff}日後`:"";
+}
+function esc(s){ return s.replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+function thumb(url, w){ return url ? `${url}?w=${w}&fm=webp` : ""; }
+function md(ymd){ const [,m,d]=ymd.split("-"); return `${+m}/${+d}`; }
+
+function render(){
+  const { data } = state; if(!data) return;
+  const today = jstToday();
+  const words = state.q.split(/\s+/).map(norm).filter(Boolean);
+  const searching = words.length > 0;
+  const [from, to] = searching ? ["0000-01-01","9999-12-31"] : rangeOf(state.range, today);
+
+  document.querySelectorAll(".chip[data-range]").forEach(b => {
+    b.setAttribute("aria-pressed", String(!searching && b.dataset.range === state.range));
+    b.disabled = searching;
+  });
+
+  let items = data.prizes.filter(p => p.date >= from && p.date <= to);
+  if (searching) items = items.filter(p => words.every(w => p._n.includes(w)));
+  // 検索中は「平塚のみ」でも他店のみの商品を残す（「平塚には入らない」と答えるため）
+  const hereCount = items.filter(p => p._here).length;
+  if (state.onlyHere && !searching) items = items.filter(p => p._here);
+
+  // 並び: 今後の分は近い順、過去は新しい順
+  items.sort((a,b) => {
+    const fa = a.date >= today, fb = b.date >= today;
+    if (fa !== fb) return fa ? -1 : 1;
+    return fa ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date);
+  });
+
+  const upd = new Date(data.updatedAt).toLocaleString("ja-JP",{timeZone:"Asia/Tokyo",month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"});
+  $("#status").textContent = searching
+    ? `「${state.q}」${items.length}件（平塚あり ${hereCount}件）・${upd} 更新`
+    : `${items.length}件・${upd} 更新`;
+
+  if (!items.length){
+    $("#list").innerHTML = `<p class="empty">${searching
+      ? "該当する景品はありません。<br>作品名を短くするか、キャラ名だけで検索してください。"
+      : "この期間の入荷予定はありません。"}</p>`;
+    return;
+  }
+
+  const hl = (name) => {
+    if (!searching) return esc(name);
+    // 正規化前の文字列上で素朴にハイライト（NFKCで長さが変わらない範囲）
+    let out = esc(name);
+    for (const w of state.q.split(/\s+/).filter(Boolean)){
+      const re = new RegExp(w.replace(/[.*+?^${}()|[\]\\]/g,"\\$&"), "gi");
+      out = out.replace(re, m => `<mark>${m}</mark>`);
+    }
+    return out;
+  };
+
+  let html = "", cur = "";
+  for (const p of items){
+    if (p.date !== cur){
+      cur = p.date;
+      const rel = relLabel(p.date, today);
+      html += `<div class="day"><b>${md(p.date)}</b><span>（${WD[dow(p.date)]}）</span>${rel?`<span class="rel">${rel}</span>`:""}</div>`;
+    }
+    const others = p.stores.filter(s => s !== "hiratsuka").map(s => data.storeNames[s]).join("・");
+    const tags = [
+      p._here ? `<span class="tag here">平塚あり</span>` : `<span class="tag away">平塚なし（${others || "—"}）</span>`,
+      p.dateChangedAt ? `<span class="tag moved">日付変更 ${md(p.prevDate)}→${md(p.date)}</span>` : "",
+      p.firstSeen && p.firstSeen >= addDays(today,-2) ? `<span class="tag new">新着</span>` : "",
+    ].join("");
+    const img = p.image ? `<img loading="lazy" src="${thumb(p.image,160)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'noimg'}))">` : `<div class="noimg"></div>`;
+    html += `<button class="row${p._here?"":" off"}" aria-expanded="false" data-img="${p.image?esc(thumb(p.image,800)):""}">
+      ${img}<div><div class="name">${hl(p.name)}</div><div class="meta">${tags}</div></div>
+      <div class="detail"></div></button>`;
+  }
+  $("#list").innerHTML = html;
+}
+
+// 行タップで大きい画像と取扱店舗を表示
+$("#list").addEventListener("click", (e) => {
+  const row = e.target.closest(".row"); if(!row) return;
+  const open = row.getAttribute("aria-expanded") === "true";
+  row.setAttribute("aria-expanded", String(!open));
+  const det = row.querySelector(".detail");
+  if (!open && !det.dataset.done){
+    det.dataset.done = "1";
+    const src = row.dataset.img;
+    det.innerHTML = src ? `<img src="${src}" alt="景品画像">` : `<p>画像はありません</p>`;
+  }
+});
+
+let t;
+$("#q").addEventListener("input", (e) => { clearTimeout(t); t = setTimeout(() => { state.q = e.target.value.trim(); render(); scrollTo(0,0); }, 120); });
+$("#clear").addEventListener("click", () => { $("#q").value = ""; state.q = ""; render(); $("#q").focus(); });
+document.querySelectorAll(".chip[data-range]").forEach(b => b.addEventListener("click", () => { state.range = b.dataset.range; render(); scrollTo(0,0); }));
+$("#onlyHere").addEventListener("click", (e) => {
+  state.onlyHere = !state.onlyHere; e.currentTarget.setAttribute("aria-pressed", String(state.onlyHere)); render();
+});
+// 見出しの固定位置をヘッダーの高さに合わせる
+const fit = () => document.documentElement.style.setProperty("--hdr", $("#hdr").offsetHeight + "px");
+addEventListener("resize", fit); fit();
+
+fetch("data.json", { cache: "no-cache" })
+  .then(r => { if(!r.ok) throw new Error(r.status); return r.json(); })
+  .then(d => {
+    for (const p of d.prizes){ p._n = norm(p.name); p._here = p.stores.includes("hiratsuka"); }
+    state.data = d; render();
+  })
+  .catch(() => { $("#status").textContent = "データを読み込めませんでした。通信状態を確認して、再読み込みしてください。"; });
+</script>
+</body>
+</html>
