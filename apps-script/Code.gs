@@ -36,7 +36,8 @@ function readAll_() {
 }
 
 function doGet(e) {
-  if (!authorized_(e.parameter.key)) return json_({ error: "unauthorized" });
+  const key = e && e.parameter ? e.parameter.key : "";
+  if (!authorized_(key)) return json_({ error: "unauthorized" });
   return json_({ statuses: readAll_() });
 }
 

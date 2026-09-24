@@ -39,7 +39,29 @@ header{position:sticky;top:0;z-index:5;background:var(--sea);color:#fff;
 .chip.store[aria-pressed="true"]{background:#7fd6c5;border-color:#7fd6c5;color:#08221d}
 .chip:disabled{opacity:.4}
 .status{font-size:13px;color:var(--sub);padding:10px 14px 0}
-main{padding:0 0 calc(env(safe-area-inset-bottom) + 40px)}
+main{padding:0 0 calc(env(safe-area-inset-bottom) + 96px)}
+.postbar{position:fixed;left:0;right:0;bottom:0;z-index:6;display:none;gap:8px;align-items:center;
+  padding:10px 12px calc(env(safe-area-inset-bottom) + 10px);background:var(--sea);color:#fff;box-shadow:0 -4px 16px rgba(0,0,0,.2)}
+.postbar.show{display:flex}
+.postbar span{flex:1;font-size:15px}
+.postbar button{font:inherit;font-size:15px;border:0;border-radius:10px;padding:10px 14px}
+.postbar .make{background:#7fd6c5;color:#08221d;font-weight:700}
+.postbar .clear{background:rgba(255,255,255,.14);color:#fff}
+.pick{display:block;width:100%;font:inherit;font-size:14px;padding:10px;border-radius:10px;margin-bottom:10px;
+  border:1px dashed var(--line);background:var(--bg);color:var(--ink)}
+.pick[aria-pressed="true"]{border-style:solid;border-color:var(--here);color:var(--here);background:var(--here-bg);font-weight:700}
+.tag.post{background:#1d9bf0;color:#fff}
+#composer{width:min(96vw,560px);max-height:92vh;overflow:auto}
+#composer textarea{width:100%;min-height:220px;font:inherit;font-size:15px;line-height:1.6;padding:10px;border-radius:10px;
+  border:1px solid var(--line);background:var(--bg);color:var(--ink);resize:vertical}
+.count{text-align:right;font-size:13px;margin-top:4px;color:var(--sub)}
+.count.over{color:var(--alert);font-weight:700}
+.tagpick{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.tagpick button{font:inherit;font-size:13px;padding:5px 10px;border-radius:999px;border:1px solid var(--line);background:var(--bg);color:var(--sub)}
+.tagpick button[aria-pressed="true"]{border-color:#1d9bf0;color:#1d9bf0;font-weight:700}
+.imgs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:6px}
+.imgs a{display:block;overflow:hidden;border-radius:8px}
+.imgs img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;background:var(--line)}
 .day{position:sticky;top:var(--hdr,112px);z-index:2;background:var(--bg);
   padding:14px 14px 6px;display:flex;align-items:baseline;gap:8px;border-bottom:1px solid var(--line)}
 .day b{font-size:22px;font-variant-numeric:tabular-nums;letter-spacing:.02em}
@@ -110,6 +132,33 @@ mark{background:#ffe38a;color:#132338;border-radius:3px;padding:0 1px}
 <p class="status" id="status">読み込み中…</p>
 <main id="list"></main>
 
+<div class="postbar" id="postbar">
+  <span id="postCount"></span>
+  <button type="button" class="clear" id="postClear">解除</button>
+  <button type="button" class="make" id="postMake">投稿文を作る</button>
+</div>
+
+<dialog id="composer">
+  <h2>稼働開始のお知らせ</h2>
+  <label for="cPlace">稼働場所</label>
+  <input id="cPlace" type="text" autocomplete="off" data-1p-ignore data-lpignore="true">
+  <label>ハッシュタグ（タップで切り替え）</label>
+  <div class="tagpick" id="cTags"></div>
+  <label for="cFixed">いつも付けるタグ（空白区切り）</label>
+  <input id="cFixed" type="text" autocomplete="off" data-1p-ignore data-lpignore="true">
+  <label for="cText">投稿文（ここで直接直せます）</label>
+  <textarea id="cText"></textarea>
+  <div class="count" id="cCount"></div>
+  <label>画像（長押しで保存 → 投稿に添付。最大4枚）</label>
+  <div class="imgs" id="cImgs"></div>
+  <div class="actions">
+    <button type="button" id="cClose">閉じる</button>
+    <button type="button" id="cOpenX">Xで開く</button>
+    <button type="button" id="cCopy" class="primary">コピー</button>
+  </div>
+  <p id="cInfo"></p>
+</dialog>
+
 <dialog id="settings">
   <form method="dialog" autocomplete="on">
     <h2>在庫状態の同期</h2>
@@ -151,7 +200,11 @@ function merge(remote){
   }
 }
 function setStatus(id, s){
+  const before = statuses[id]?.s;
   statuses[id] = { s, t: Date.now() };
+  if (s === "稼働中" && before !== "稼働中") postSel.add(id);   // 稼働中にしたら投稿候補へ
+  if (s !== "稼働中") postSel.delete(id);
+  savePost();
   pending.add(id); saveLocal(); render(); schedulePush();
 }
 
@@ -221,6 +274,84 @@ function md(ymd){ const [,m,d]=ymd.split("-"); return `${+m}/${+d}`; }
 function when(t){ return new Date(t).toLocaleString("ja-JP",{timeZone:"Asia/Tokyo",month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"}); }
 const openIds = new Set();
 
+// ---------- X投稿文（稼働開始のお知らせ） ----------
+let postSel = new Set(ls.get("postSel", []));
+let postCfg = ls.get("postCfg", { place: "2階プライズ", fixed: "#ベネクス平塚 #クレゲ #クレーンゲーム", off: [] });
+function savePost(){ ls.set("postSel", [...postSel]); ls.set("postCfg", postCfg); }
+function selected(){
+  const byId = new Map((state.data?.prizes || []).map(p => [p.id, p]));
+  return [...postSel].map(id => byId.get(id)).filter(Boolean);
+}
+function renderPostbar(){
+  const n = selected().length;
+  $("#postbar").classList.toggle("show", n > 0);
+  $("#postCount").textContent = `投稿候補 ${n}件`;
+}
+// 商品名から作品名を推測してハッシュタグにする
+const NOT_TITLE = /^(劇場版|映画|TVアニメ|アニメ|TV|New|NEW|ぷちっしゅ!?|ぴんぐるみ|ちびぐるみ|おおきな)$/;
+const PRODUCT_LINE = /^(MAXIMATIC|BiCute|Grandista|Luminasta|Desktop|Trio-Try-iT|Aqua|FIGURIZM|SOFVIMATES|Coreful|VIVIT|XSTELLAR|Figure|Relax|GLITTER|VIBRATION|Noodle|Q)/i;
+const clean = (t) => t.replace(/^(TV|劇場版|映画)?アニメ/, "").replace(/[^\p{L}\p{N}_ー]/gu, "");
+function titleTag(name){
+  const n = name.normalize("NFKC");
+  const m = n.match(/[『「]([^』」]+)[』」]/);
+  let t;
+  if (m) t = m[1];
+  else {
+    const seg = n.split(/\s+/).filter(Boolean);
+    while (seg.length > 1 && NOT_TITLE.test(seg[0])) seg.shift();   // 「劇場版」「ぷちっしゅ!」などは作品名ではない
+    const first = seg[0] || "";
+    t = first;
+    // 英字の単語が続く作品名（BanG Dream!、METAL GEAR SOLID など）はつなげる。景品シリーズ名で止める
+    for (let i = 1; /^[A-Za-z][A-Za-z!.'&]*$/.test(t.replace(/\s/g, "")) && i < seg.length && i < 4
+         && /^[A-Za-z]/.test(seg[i]) && !PRODUCT_LINE.test(seg[i]); i++) t += seg[i];
+    if (clean(t).length > 20) t = first;
+  }
+  t = clean(t);
+  return t.length >= 2 && t.length <= 20 ? "#" + t : "";
+}
+// Xの文字数（全角=2、半角=1、上限280。表示は全角換算）
+function xLength(text){
+  let w = 0;
+  const seg = new Intl.Segmenter("ja", { granularity: "grapheme" });
+  for (const { segment } of seg.segment(text)){
+    const cp = segment.codePointAt(0);
+    const light = cp <= 0x10ff || (cp >= 0x2000 && cp <= 0x200d) || (cp >= 0x2010 && cp <= 0x201f) || (cp >= 0x2032 && cp <= 0x2037);
+    w += light && segment.length === 1 ? 1 : 2;
+  }
+  return w;
+}
+function buildPost(){
+  const items = selected();
+  const auto = [...new Set(items.map(p => titleTag(p.name)).filter(Boolean))];
+  const fixed = postCfg.fixed.split(/\s+/).filter(Boolean).map(t => t.startsWith("#") ? t : "#" + t);
+  const tags = [...new Set([...auto, ...fixed])].filter(t => !postCfg.off.includes(t));
+  const lines = ["🌈プライズ景品入荷情報🌈", ...items.map(p => "・" + p.name.normalize("NFKC").replace(/\s+/g, " ").trim()),
+    `${postCfg.place}にて稼働中💖`, "", tags.join(" ")];
+  return { text: lines.join("\n").trim(), allTags: [...new Set([...auto, ...fixed])], items };
+}
+function openComposer(){
+  $("#cPlace").value = postCfg.place;
+  $("#cFixed").value = postCfg.fixed;
+  refreshComposer();
+  $("#cInfo").textContent = "";
+  $("#composer").showModal();
+}
+function refreshComposer(){
+  const { text, allTags, items } = buildPost();
+  $("#cText").value = text;
+  $("#cTags").innerHTML = allTags.map(t => `<button type="button" data-tag="${esc(t)}" aria-pressed="${!postCfg.off.includes(t)}">${esc(t)}</button>`).join("");
+  $("#cImgs").innerHTML = items.filter(p => p.image).slice(0, 4)
+    .map(p => `<a href="${esc(p.image)}" target="_blank" rel="noopener"><img src="${esc(thumb(p.image,300))}" alt="" title="${esc(p.name)}"></a>`).join("")
+    || `<p>画像はありません</p>`;
+  updateCount();
+}
+function updateCount(){
+  const w = xLength($("#cText").value);
+  const el = $("#cCount");
+  el.textContent = `${Math.ceil(w / 2)} / 140字（全角換算）${w > 280 ? "　上限を超えています。商品を減らすか2回に分けてください" : ""}`;
+  el.classList.toggle("over", w > 280);
+}
+
 function render(){
   const { data } = state; if(!data) return;
   const today = jstToday();
@@ -250,6 +381,7 @@ function render(){
   const parts = [searching ? `「${state.q}」${items.length}件（平塚あり ${hereCount}件）` : `${items.length}件`, `${when(data.updatedAt)} 更新`];
   if (sync.url) parts.push(syncMsg || (pending.size ? `未送信 ${pending.size}件` : sync.last ? `${when(sync.last)} 同期` : ""));
   $("#status").textContent = parts.filter(Boolean).join("・");
+  renderPostbar();
 
   if (!items.length){
     $("#list").innerHTML = `<p class="empty">${searching
@@ -279,6 +411,7 @@ function render(){
     const others = p.stores.filter(s => s !== "hiratsuka").map(s => data.storeNames[s]).join("・");
     const tags = [
       st?.s ? `<span class="tag ${st.s}">${st.s}</span>` : "",
+      postSel.has(p.id) ? `<span class="tag post">投稿候補</span>` : "",
       p._here ? `<span class="tag here">平塚あり</span>` : `<span class="tag away">平塚なし（${others || "—"}）</span>`,
       p.dateChangedAt ? `<span class="tag moved">日付変更 ${md(p.prevDate)}→${md(p.date)}</span>` : "",
       p.firstSeen && p.firstSeen >= addDays(today,-2) ? `<span class="tag new">新着</span>` : "",
@@ -296,7 +429,9 @@ function render(){
 function detailHtml(p, st, btns){
   const img = p.image ? `<img src="${esc(thumb(p.image,800))}" alt="景品画像">` : `<p>画像はありません</p>`;
   const note = st?.t ? `<p>状態の更新: ${when(st.t)}</p>` : "";
-  return `<div class="st-buttons" role="group" aria-label="在庫状態">${btns}</div>${img}${note}`;
+  const on = postSel.has(p.id);
+  const pick = `<button type="button" class="pick" data-pick aria-pressed="${on}">${on ? "✓ 投稿候補に入っています（タップで外す）" : "＋ 投稿候補に入れる"}</button>`;
+  return `<div class="st-buttons" role="group" aria-label="在庫状態">${btns}</div>${pick}${img}${note}`;
 }
 
 $("#list").addEventListener("click", (e) => {
@@ -304,6 +439,7 @@ $("#list").addEventListener("click", (e) => {
   const id = row.dataset.id;
   const setBtn = e.target.closest("[data-set]");
   if (setBtn){ setStatus(id, setBtn.dataset.set); return; }
+  if (e.target.closest("[data-pick]")){ postSel.has(id) ? postSel.delete(id) : postSel.add(id); savePost(); render(); return; }
   if (e.target.closest(".head")){
     openIds.has(id) ? openIds.delete(id) : openIds.add(id);
     render();
@@ -319,6 +455,28 @@ document.querySelectorAll(".chip[data-st]").forEach(b => b.addEventListener("cli
 }));
 $("#onlyHere").addEventListener("click", (e) => {
   state.onlyHere = !state.onlyHere; e.currentTarget.setAttribute("aria-pressed", String(state.onlyHere)); render();
+});
+
+// 投稿
+$("#postMake").addEventListener("click", openComposer);
+$("#postClear").addEventListener("click", () => { if (confirm("投稿候補をすべて外しますか？")){ postSel.clear(); savePost(); render(); } });
+$("#cPlace").addEventListener("input", (e) => { postCfg.place = e.target.value; savePost(); refreshComposer(); });
+$("#cFixed").addEventListener("change", (e) => { postCfg.fixed = e.target.value; savePost(); refreshComposer(); });
+$("#cTags").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-tag]"); if (!b) return;
+  const t = b.dataset.tag;
+  postCfg.off = postCfg.off.includes(t) ? postCfg.off.filter(x => x !== t) : [...postCfg.off, t];
+  savePost(); refreshComposer();
+});
+$("#cText").addEventListener("input", updateCount);
+$("#cClose").addEventListener("click", () => $("#composer").close());
+$("#cCopy").addEventListener("click", async () => {
+  try { await navigator.clipboard.writeText($("#cText").value); }
+  catch { $("#cText").select(); document.execCommand("copy"); }
+  $("#cInfo").textContent = "コピーしました。投稿が終わったら「解除」で候補を空にしてください。";
+});
+$("#cOpenX").addEventListener("click", () => {
+  window.open("https://x.com/intent/post?text=" + encodeURIComponent($("#cText").value), "_blank", "noopener");
 });
 
 // 設定
