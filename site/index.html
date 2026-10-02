@@ -149,7 +149,7 @@ mark{background:#ffe38a;color:#132338;border-radius:3px;padding:0 1px}
   <label for="cText">投稿文（ここで直接直せます）</label>
   <textarea id="cText"></textarea>
   <div class="count" id="cCount"></div>
-  <label>画像（長押しで保存 → 投稿に添付。最大4枚）</label>
+  <label>画像（投稿に添付。最大4枚）</label>
   <div class="imgs" id="cImgs"></div>
   <div class="actions">
     <button type="button" id="cClose">閉じる</button>
@@ -325,8 +325,8 @@ function buildPost(){
   const auto = [...new Set(items.map(p => titleTag(p.name)).filter(Boolean))];
   const fixed = postCfg.fixed.split(/\s+/).filter(Boolean).map(t => t.startsWith("#") ? t : "#" + t);
   const tags = [...new Set([...auto, ...fixed])].filter(t => !postCfg.off.includes(t));
-  const lines = ["🌈プライズ景品入荷情報🌈", ...items.map(p => "・" + p.name.normalize("NFKC").replace(/\s+/g, " ").trim()),
-    `${postCfg.place}にて稼働中💖`, "", tags.join(" ")];
+  const lines = ["🌈プライズ景品入荷情報🌈", "", ...items.map(p => "・" + p.name.normalize("NFKC").replace(/\s+/g, " ").trim()),
+    "", `${postCfg.place}にて稼働中💖`, "", tags.join(" ")];
   return { text: lines.join("\n").trim(), allTags: [...new Set([...auto, ...fixed])], items };
 }
 function openComposer(){
@@ -348,7 +348,7 @@ function refreshComposer(){
 function updateCount(){
   const w = xLength($("#cText").value);
   const el = $("#cCount");
-  el.textContent = `${Math.ceil(w / 2)} / 140字（全角換算）${w > 280 ? "　上限を超えています。商品を減らすか2回に分けてください" : ""}`;
+  el.textContent = `${Math.ceil(w / 2)} / 140字（全角換算）${w > 280 ? "　" : ""}`;
   el.classList.toggle("over", w > 280);
 }
 
