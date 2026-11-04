@@ -258,12 +258,27 @@ async function main() {
     const prev = cache[p.id];
     cache[p.id] = { ...prev, name: p.name, date: p.date, stores: p.stores, image: p.image ?? prev?.image ?? null };
   }
+  // IDなし（予備方式で取った name:… 形式）の項目を、同じ景品のIDあり項目に統合する
+  const key = (s) => s.normalize("NFKC").replace(/\s+/g, " ").trim();
+  const withId = new Map(), withIdName = new Set();
+  for (const [id, p] of Object.entries(cache)) {
+    if (!id.startsWith("name:")) { withId.set(`${p.date}|${key(p.name)}`, id); withIdName.add(key(p.name)); }
+  }
+  let merged = 0;
+  for (const [id, p] of Object.entries(cache)) {
+    if (!id.startsWith("name:")) continue;
+    // 同じ日付・商品名がある、または今後の予定で同じ商品名がある（入荷日が変わった場合）なら重複
+    if (withId.has(`${p.date}|${key(p.name)}`) || (p.date >= today && withIdName.has(key(p.name)))) {
+      delete cache[id]; merged++;
+    }
+  }
+
   // 掲載から消えた予定を外す: 今回取れた日付の範囲内（最終日は件数上限で欠ける可能性があるので除く）にあるのに見つからないもの
   const fetchedDates = prizes.map((p) => p.date).sort();
   const lo = fetchedDates[0], hi = fetchedDates.at(-1);
   let removed = 0;
   for (const [id, p] of Object.entries(cache)) {
-    if (!seen.has(id) && p.date >= today && p.date >= lo && p.date < hi && id.startsWith("new-prize-")) { delete cache[id]; removed++; }
+    if (!seen.has(id) && p.date >= today && p.date >= lo && p.date < hi) { delete cache[id]; removed++; }
     else if (p.date < addDays(today, -CACHE_PAST_DAYS)) delete cache[id];
   }
   const imagesFound = await fillImagesFromDetail(cache, today);
@@ -307,7 +322,7 @@ async function main() {
   const hira = (list) => list.filter((p) => p.stores.includes("hiratsuka")).length;
   const noImg = view.filter((p) => !p.image && p.stores.includes("hiratsuka")).length;
   console.log(`取得方法: ${method} / 今回${prizes.length}件 / 蓄積${Object.keys(cache).length}件 / 画面用${view.length}件`);
-  console.log(`新規 ${added.length}件（うち平塚 ${hira(added)}件） / 入荷日変更 ${changed.length}件（うち平塚 ${hira(changed)}件） / 掲載終了 ${removed}件`);
+  console.log(`新規 ${added.length}件（うち平塚 ${hira(added)}件） / 入荷日変更 ${changed.length}件（うち平塚 ${hira(changed)}件） / 掲載終了 ${removed}件 / 重複統合 ${merged}件`);
   console.log(`詳細ページから画像取得 ${imagesFound}件 / 画像なし（平塚） ${noImg}件`);
 }
 
